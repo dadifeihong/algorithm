@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<style type="text/css">
+			#ul1{
+				margin: 30px auto;
+				border: 1px solid black;
+				border-bottom: none;
+				border-right:none ;
+				padding: 0;
+				height: auto;
+				overflow: hidden;
+			}
+			#ul1 li{
+				list-style: none;
+				border: 1px solid black;
+				border-top:none ;
+				border-left:none ;
+				float: left;
+			}
+			#ul1 li.style1{
+				background-color: red;
+			}
+			#ul1 li.style2{
+				background-color: black;
+			}
+			#ul1 li.style3{
+				background-color: orange;
+			}
+			#btn{
+				position: absolute;
+				left: 50%;
+				margin-left: -50px;
+			}
+			#btn:hover{
+				background-color: #E21918;
+				color: white;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+	<body>
+		<ul id="ul1">
+			
+		</ul>
+		<input id="btn" type="button" value="开始寻路"/>
+		<script type="text/javascript">
+			//1 找对象
+			var oUl = document.getElementById("ul1");
+			var aLi = document.getElementsByTagName("li");
+			var oBtn = document.getElementById("btn");
+			//找到起始点，因为我们给起始点设置了不同的样式 所以可以通过样式可以找到起始点
+			var beginLi = document.getElementsByClassName("style1");
+			var endLi = document.getElementsByClassName("style3");
+			//定义开始队列数组  open队列： 收集可能会需要走的路线   要走的路线放在open队列中  
+			var openArr = []
+			//定义结束队列数组 close队列： 排除掉不能走的路线        不走的路线放在close队列中
+			var closeArr = []
+			//创建一个数组来表示地图，这个地图  20 * 20  其中 值为1 表示起始节点   值为2 表示障碍物  值为3 表示目标节点
+			var map = [
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,1,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+			]
+			
+			/*
+			 * 定义初始化函数
+			 */
+			function init(){
+				//在这个函数中需要动态创建出li 通过调用封装好的函数实现
+				createMap()
+			}
+			//调用初始化函数
+			init();
+			/*
+			 * 定义创建地图函数
+			 */
+			function createMap(){
+				//定义li的大小  
+				var liSize = 20;
+				for(var i=0;i<map.length;i++){
+					//创建元素
+					var oLi = document.createElement("li");
+					//设置宽高
+					oLi.style.width = liSize +"px";
+					oLi.style.height = liSize + "px";
+					//添加到li中
+					oUl.appendChild(oLi);
+					//判断map元素的值来设置起始点以及障碍物
+					if(map[i]==1){
+						//如果map值为1 设置样式1 背景为红色  表示起始点
+						oLi.className = "style1";
+						//当元素刚开始创建的时候，open队列中的元素只有 起始节点    也就是说将红色点都放到open队列中 并且 刚开始的时候 起始点只有一个
+						openArr.push(oLi);
+					}else if(map[i]==2){
+						//如果map值为2 设置样式2 背景为黑色  表示障碍物
+						oLi.className = "style2";
+						//把黑色的点都放到close队列中  这些作为障碍物 是不会走的
+						closeArr.push(oLi);
+					}else if(map[i]==3){
+						//如果map值为3 设置样式3 背景为橙色  表示结束点
+						oLi.className = "style3"
+					}
+				}
+				oUl.style.width = 20*(liSize+1)+1+"px"
+			}
+			/**
+			 * 估价函数封装，传入一个节点给他一个估值
+			 */
+			 
+			function fn(nowLi){
+				return g(nowLi)+h(nowLi)
+			}
+			//初始点到当前节点的实际代价
+			function g(nowLi){
+				//勾股定理
+				//横坐标的差值   beginLi[0] 开始节点    nowLi表示当前正在被估值的节点
+				var a = nowLi.offsetLeft-beginLi[0].offsetLeft;
+				//纵坐标的差值
+				var b = nowLi.offsetTop - beginLi[0].offsetTop;
+				//勾股定理  开方得到两点之间最短距离
+				return Math.sqrt(a*a+b*b)
+			}
+			//当前节点到目标点的实际代价
+			function h(nowLi){
+				//勾股定理，这里和g函数一样的原理 endLi[0] 结束节点    nowLi表示当前正在被估值的节点
+				var a = nowLi.offsetLeft-endLi[0].offsetLeft;
+				var b = nowLi.offsetTop - endLi[0].offsetTop;
+				return Math.sqrt(a*a+b*b)
+			}
+			
+			/*
+			 * 封装函数 实现开始队列中元素的添加
+			 */
+			
+			function openFn(){
+				//1 需要把openArr中的第一个元素删除 并且返回给 nodeLi变量
+				var nodeLi = openArr.shift();
+				//2 把openArr中删除的这个li节点 添加到closeArr中 这里调用closeFn函数实现
+				closeFn(nodeLi);
+				
+				//经过上面的步骤 已经能够找到相邻的元素了  接下来需要对这些元素的估值进行排序
+				openArr.sort(function(li1,li2){
+					return li1.num - li2.num
+				})
+				
+				
+			}
+			/*
+			 * 封装函数  实现结束队列中元素的添加
+			 * 
+			 */
+			function closeFn(nodeLi){
+				//open队列中删除的元素 被 push到close队列中
+				closeArr.push(nodeLi);
+			}
+			
+			/**
+			 * 封装函数查找某个节点周围的节点
+			 */
+			function findLi(nodeLi){
+				//创建一个结果数组 把查找到的结果放到这个数组中
+				var result = [];
+				//循环所有的li节点 进行查找
+				for(var i=0;i<aLi.length;i++){
+					//如果经过过滤 返回的是true 表示 这个节点不是障碍物 那么需要添加到result结果数组中
+					if(filter(aLi[i])){
+						result.push(aLi[i]);
+					}
+				}
+				//接下来需要在没有障碍物的结果中去找 和 当前节点相邻的节点
+				//判断条件是 他们的横纵坐标的差值需要小于 等于 网格大小
+				for(var i=0;i<result.length;i++){
+					if(Math.abs(nodeLi.offsetLeft - result[i].offsetLeft)<=21 && Math.abs(nodeLi.offsetTop - result[i].offsetTop)<=20+1 ){
+						//这里的result[i]就是当前目标点相邻的节点  把这些节点传入到估价函数就能得到他们的估值，并且要把这些估值挂载到他们自身的一个自定义属性上
+						result[i].num = fn(result[i]);
+						//nodeLi 是当前的位置  result[i] 是当前位置相邻的点  下一次要走的位置就在这几个点中，所以给result[i]定义一个parent属性
+						//来存上一次的路径 ，最终把这些路径联系起来就是完整的路径
+						result[i].parent = nodeLi;
+						//把已经经过估值的li添加到openArr中
+						openArr.push(result[i]);
+					}
+				}
+			}
+			/**
+			 * 封装函数 实现过滤功能
+			 * 这个函数的功能就是 接收到一个li 判断是否是障碍物 如果是 就返回false  如果不是就返回true  
+			 */
+			function filter(nodeLi){
+				//循环close队列中的所有元素 与传过来的节点进行比对 如果比对成功 返回false 
+				for(var i=0;i<closeArr.length;i++){
+					if(nodeLi == closeArr[i]){
+						return false;
+					}
+				}
+				for(var i=0;i<openArr.length;i++){
+					if(nodeLi == openArr[i]){
+						return false;
+					}
+				}
+				//如果循环完都没有匹配上 那么证明当前传过来的 li节点 并不是障碍物 
+				return true;
+			}
+		</script>
+	</body>
+</html>

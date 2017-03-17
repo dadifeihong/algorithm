@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<style type="text/css">
+			#ul1{
+				margin: 30px auto;
+				border: 1px solid black;
+				border-bottom: none;
+				border-right:none ;
+				padding: 0;
+				height: auto;
+				overflow: hidden;
+			}
+			#ul1 li{
+				list-style: none;
+				border: 1px solid black;
+				border-top:none ;
+				border-left:none ;
+				float: left;
+			}
+			#ul1 li.style1{
+				background-color: red;
+			}
+			#ul1 li.style2{
+				background-color: black;
+			}
+			#ul1 li.style3{
+				background-color: orange;
+			}
+			#btn{
+				position: absolute;
+				left: 50%;
+				margin-left: -50px;
+			}
+			#btn:hover{
+				background-color: #E21918;
+				color: white;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+	<body>
+		<ul id="ul1">
+			
+		</ul>
+		<input id="btn" type="button" value="开始寻路"/>
+		<script type="text/javascript">
+			var oUl = document.getElementById("ul1");
+			var aLi = document.getElementsByTagName("li");
+			var beginLi = document.getElementsByClassName("style1");
+			var endLi = document.getElementsByClassName("style3");
+			var oBtn = document.getElementById("btn")
+			//算法实现
+			/**
+			 * open队列： 收集可能会需要走的路线   要走的路线放在open队列中  
+			 * close队列： 排除掉不能走的路线        不走的路线放在close队列中
+			 * 
+			 */
+			//可能要走的路线
+			var openArr = []
+			//已经关闭的路线
+			var closeArr = []
+			var map = [
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,1,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+				0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+			]
+			//最终线路数组
+			var resultParent = [];
+			init();
+			//初始化函数
+			function init(){
+				createMap()
+				//点击按钮的时候 需要去收集可能走的路线
+				oBtn.onclick = function(){
+					openFn();
+				}
+			}
+			//创建地图
+			function createMap(){
+				var liSize = 20;
+				for(var i=0;i<map.length;i++){
+					var oLi = document.createElement("li");
+					oLi.style.width = liSize +"px";
+					oLi.style.height = liSize + "px";
+					oUl.appendChild(oLi);
+					if(map[i]==1){
+						oLi.className = "style1";
+						//当元素刚开始创建的时候，open队列中的元素只有 起始节点    也就是说将红色点都放到open队列中 并且 刚开始的时候 起始点只有一个
+						openArr.push(oLi);
+					}else if(map[i]==2){
+						//当元素刚刚开始创建的时候  close队列中的元素 就是 值为2的元素   也就是说 把黑色的点都放到close队列中  这些作为障碍物 是不会走的
+						oLi.className = "style2";
+						closeArr.push(oLi);
+					}else if(map[i]==3){
+						oLi.className = "style3"
+					}
+				}
+				//ul的宽带等于 ul的左边 1 + 20个节点的宽带 20*(liSize+1)  其中 liSize+1 是因为 节点有1个像素的右边框
+				oUl.style.width = 20*(liSize+1)+1+"px"
+			}
+			//估价函数
+			function fn(nowLi){
+				return g(nowLi)+h(nowLi)
+			}
+			//初始点到当前节点的实际代价
+			function g(nowLi){
+				//勾股定理
+				var a = nowLi.offsetLeft-beginLi[0].offsetLeft;
+				var b = nowLi.offsetTop - beginLi[0].offsetTop;
+				return Math.sqrt(a*a+b*b)
+			}
+			//当前节点到目标点的实际代价
+			function h(nowLi){
+				//勾股定理
+				var a = nowLi.offsetLeft-endLi[0].offsetLeft;
+				var b = nowLi.offsetTop - endLi[0].offsetTop;
+				return Math.sqrt(a*a+b*b)
+			}
+			
+			
+			/**
+			 * 实现的功能： 1 把open队列中的元素移到close队列中，表示起始节点已经走过了，那么接下来应该走哪一步呢？
+			 * 			   2 把起始位置周围的 8 个点都找出来 并且 计算出 估价函数值最低的那个元素  那么这个元素就是接下来要走的这步
+			 * 			   3 接下来走的这步确定了 那么就又该把这个位置的点移动到 close队列中，然后继续找周围的点 并且进行估价   以此类推
+			 */
+			function openFn(){
+				//nodeLi 表示 当前open队列中的元素  也就是说 先去除第一个起始节点
+				//shift 方法的作用： 把数组中的第一个元素删除，并且返回这个被删除的元素
+				var nodeLi = openArr.shift();
+				//如果nodeLi 和 endLi 一样了 那么证明已经走到目标点了 ，这个时候需要停止调用
+				if(nodeLi == endLi[0]){
+					showPath();
+					return;
+				}
+				//把open队列中删除的元素 添加到 close队列中
+				closeFn(nodeLi)
+				//接下来 需要找到 nodeLi 周围的节点
+				findLi(nodeLi);
+				
+				//经过上面的步骤 已经能够找到相邻的元素了  接下来需要对这些元素的估值进行排序
+				openArr.sort(function(li1,li2){
+					return li1.num - li2.num
+				})
+			
+				//进行递归操作 找下一步需要走的节点 在这个过程中，也需要执行相同的步骤 那就是查找相邻的节点  但是查找出来的结果可能和上一次的重复，也就是说上一次动作已经把这个元素添加到open队列中了
+				//那么就没有必要再进行push操作了  所以还需要在过滤函数中加一段代码
+				openFn();
+			}
+			
+			function closeFn(nodeLi){
+				//open队列中删除的元素 被 push到close队列中
+				closeArr.push(nodeLi);
+			}
+			
+			/**
+			 * 封装函数查找某个节点周围的节点
+			 */
+			function findLi(nodeLi){
+				//创建一个结果数组 把查找到的结果放到这个数组中
+				var result = [];
+				//循环所有的li节点 进行查找
+				for(var i=0;i<aLi.length;i++){
+					//如果经过过滤 返回的是true 表示 这个节点不是障碍物 那么需要添加到result结果数组中
+					if(filter(aLi[i])){
+						result.push(aLi[i]);
+					}
+				}
+				//接下来需要在没有障碍物的结果中去找 和 当前节点相邻的节点
+				//判断条件是 他们的横纵坐标的差值需要小于 等于 网格大小
+				for(var i=0;i<result.length;i++){
+					if(Math.abs(nodeLi.offsetLeft - result[i].offsetLeft)<=21 && Math.abs(nodeLi.offsetTop - result[i].offsetTop)<=20+1 ){
+						//这里的result[i]就是当前目标点相邻的节点  把这些节点传入到估价函数就能得到他们的估值，并且要把这些估值挂载到他们自身的一个自定义属性上
+						result[i].num = fn(result[i]);
+						//nodeLi 是当前的位置  result[i] 是当前位置相邻的点  下一次要走的位置就在这几个点中，所以给result[i]定义一个parent属性
+						//来存上一次的路径 ，最终把这些路径联系起来就是完整的路径
+						result[i].parent = nodeLi;
+						openArr.push(result[i]);
+					}
+				}
+			}
+			/**
+			 * 封装函数 实现过滤功能
+			 * 这个函数的功能就是 接收到一个li 判断是否是障碍物 如果是 就返回false  如果不是就返回true  
+			 */
+			function filter(nodeLi){
+				//循环close队列中的所有元素 与传过来的节点进行比对 如果比对成功 返回false 
+				for(var i=0;i<closeArr.length;i++){
+					if(nodeLi == closeArr[i]){
+						return false;
+					}
+				}
+				for(var i=0;i<openArr.length;i++){
+					if(nodeLi == openArr[i]){
+						return false;
+					}
+				}
+				//如果循环完都没有匹配上 那么证明当前传过来的 li节点 并不是障碍物 
+				return true;
+			}
+			/**
+			 * 打印出所走过的路径
+			 */
+			function showPath(){
+				//closeArr中最后一个 就是 找到目标点的前一个位置  因为走过的位置都会被存放在closeArr中
+				var lastLi = closeArr.pop();
+				var iNow = 0;
+				//调用findParent函数 来找上一个节点
+				findParent(lastLi)
+				
+				var timer = setInterval(function(){
+					resultParent[iNow].style.background = "red";
+					iNow++;
+					if(iNow == resultParent.length){
+						clearInterval(timer);
+					}
+				},500)
+			}
+			/**
+			 * 定义一个函数来找到上一次走过的节点
+			 */
+			
+			function findParent(li){
+				resultParent.unshift(li);
+				if(li.parent == beginLi[0]){
+					return;
+				}
+				findParent(li.parent);
+			}
+		</script>
+	</body> 
+</html>
